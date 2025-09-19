@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Store Expense Tracker</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+        button, select, input {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: #f9f9f9;
+        }
+        button {
+            cursor: pointer;
+            background: #007bff;
+            color: white;
+            border: none;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .active-btn {
+            background: #28a745 !important;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            font-size: 0.9em;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+            position: sticky;
+            top: 0;
+        }
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .card {
+            background: #f9f9f9;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #007bff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .card h3 {
+            margin-top: 0;
+            color: #007bff;
+        }
+        .chart-container {
+            height: 400px;
+            margin-bottom: 20px;
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+        }
+        .hidden {
+            display: none;
+        }
+        .total-row {
+            font-weight: bold;
+            background: #e9ecef !important;
+        }
+        .positive {
+            color: #28a745;
+        }
+        .negative {
+            color: #dc3545;
+        }
+        .warning {
+            background: #fff3cd;
+        }
+        .search-container {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #e7f3ff;
+            border-radius: 4px;
+        }
+        .tab-container {
+            margin-bottom: 20px;
+        }
+        .tab-buttons {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 10px;
+        }
+        .tab-button {
+            padding: 8px 16px;
+            background: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 4px 4px 0 0;
+            cursor: pointer;
+        }
+        .tab-button.active {
+            background: #007bff;
+        }
+        .tab-content {
+            padding: 20px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 0 4px 4px 4px;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>🛒 Store Expense Tracker</h1>
+        <p class="warning">💡 <strong>Instructions:</strong> Update <code>data.json</code> daily by adding new entries. The system auto-loads changes.</p>
+        
+        <div class="controls">
+            <button class="active-btn" onclick="loadData()">🔄 Load Data</button>
+            <button onclick="filterPeriod('all')">📊 All Time</button>
+            <button onclick="filterPeriod('7days')">📅 Last 7 Days</button>
+            <button onclick="filterPeriod('30days')">📈 Last 30 Days</button>
+            <button onclick="filterPeriod('prevMonth')">📋 Previous Month</button>
+            
+            <select id="yearFilter" onchange="filterData()">
+                <option value="">All Years</option>
+            </select>
+            <select id="monthFilter" onchange="filterData()">
+                <option value="">All Months</option>
+                <option value="1">January</option>
+                <option value="2">February</option>
+                <option value="3">March</option>
+                <option value="4">April</option>
+                <option value="5">May</option>
+                <option value="6">June</option>
+                <option value="7">July</option>
+                <option value="8">August</option>
+                <option value="9">September</option>
+                <option value="10">October</option>
+                <option value="11">November</option>
+                <option value="12">December</option>
+            </select>
+            
+            <input type="text" id="searchInput" placeholder="Search: commission > 100" onkeyup="searchData()" style="min-width: 200px;">
+            <button onclick="exportToCSV()">📤 Export CSV</button>
+            <button onclick="generateReport()">📄 Generate Report</button>
+            <button onclick="toggleChart()">📈 Toggle Chart</button>
+            <button onclick="showTab('daily')" class="tab-button active">Daily View</button>
+            <button onclick="showTab('weekly')" class="tab-button">Weekly View</button>
+            <button onclick="showTab('monthly')" class="tab-button">Monthly View</button>
+        </div>
+
+        <div id="summary" class="summary"></div>
+
+        <!-- Daily Tab -->
+        <div id="dailyTab" class="tab-container tab-content">
+            <div class="search-container">
+                <h2>📋 Daily Expenses</h2>
+                <p>Total records: <span id="recordCount">0</span> | Date range: <span id="dateRange">-</span></p>
+            </div>
+            <div style="overflow-x: auto;">
+                <table id="dailyTable">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Total Daily</th>
+                            <th>Commission</th>
+                            <th>Hospitality</th>
+                            <th>Transport</th>
+                            <th>Donation</th>
+                            <th>Rice Cost</th>
+                            <th>Extra Cost</th>
+                            <th>Home Rent</th>
+                            <th>Packaging</th>
+                            <th>Allowance</th>
+                            <th>Repair</th>
+                            <th>Store Rent</th>
+                            <th>Payroll</th>
+                            <th>Cell Cost</th>
+                            <th>Transport Fare</th>
+                            <th>Electricity</th>
+                            <th>Waste Product</th>
+                            <th>Trade Licence</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dailyTbody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Weekly Tab -->
+        <div id="weeklyTab" class="tab-container tab-content hidden">
+            <h2>📊 Weekly Summary</h2>
+            <div style="overflow-x: auto;">
+                <table id="weeklyTable">
+                    <thead>
+                        <tr>
+                            <th>Week Starting</th>
+                            <th>Total Weekly</th>
+                            <th>Avg Daily</th>
+                            <th>Commission</th>
+                            <th>Hospitality</th>
+                            <th>Transport</th>
+                            <th>Donation</th>
+                            <th>Rice Cost</th>
+                            <th>Extra Cost</th>
+                            <th>Home Rent</th>
+                            <th>Packaging</th>
+                            <th>Allowance</th>
+                            <th>Repair</th>
+                            <th>Store Rent</th>
+                            <th>Payroll</th>
+                            <th>Cell Cost</th>
+                            <th>Transport Fare</th>
+                            <th>Electricity</th>
+                            <th>Waste Product</th>
+                            <th>Trade Licence</th>
+                        </tr>
+                    </thead>
+                    <tbody id="weeklyTbody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Monthly Tab -->
+        <div id="monthlyTab" class="tab-container tab-content hidden">
+            <h2>📈 Monthly Summary</h2>
+            <div style="overflow-x: auto;">
+                <table id="monthlyTable">
+                    <thead>
+                        <tr>
+                            <th>Month</th>
+                            <th>Total Monthly</th>
+                            <th>Avg Weekly</th>
+                            <th>Commission</th>
+                            <th>Hospitality</th>
+                            <th>Transport</th>
+                            <th>Donation</th>
+                            <th>Rice Cost</th>
+                            <th>Extra Cost</th>
+                            <th>Home Rent</th>
+                            <th>Packaging</th>
+                            <th>Allowance</th>
+                            <th>Repair</th>
+                            <th>Store Rent</th>
+                            <th>Payroll</th>
+                            <th>Cell Cost</th>
+                            <th>Transport Fare</th>
+                            <th>Electricity</th>
+                            <th>Waste Product</th>
+                            <th>Trade Licence</th>
+                        </tr>
+                    </thead>
+                    <tbody id="monthlyTbody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="expenseBreakdown">
+            <h2>💰 Expense Breakdown Analysis</h2>
+            <div style="overflow-x: auto;">
+                <table id="breakdownTable">
+                    <thead>
+                        <tr>
+                            <th>Expense Type</th>
+                            <th>Total Amount</th>
+                            <th>Avg per Day</th>
+                            <th>% of Total</th>
+                            <th>Min Value</th>
+                            <th>Max Value</th>
+                            <th>Trend (7d vs Prev 7d)</th>
+                            <th>Alert</th>
+                        </tr>
+                    </thead>
+                    <tbody id="breakdownTbody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="chartContainer" class="chart-container hidden">
+            <h3>📊 Expense Trends Chart (Last 30 Days)</h3>
+            <canvas id="expenseChart"></canvas>
+        </div>
+
+        <div id="reportContainer" class="hidden">
+            <h2>📄 Generated Report</h2>
+            <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; max-height: 500px; overflow-y: auto;">
+                <pre id="reportText"></pre>
+            </div>
+            <button onclick="copyReport()">📋 Copy Report</button>
+        </div>
+    </div>
+
+    <script>
+        let allData = [];
+        let filteredData = [];
+        let expenseTypes = [
+            'commission', 'hospitality', 'transport', 'donation', 'rice-cost',
+            'extra-cost', 'home-rent', 'packaging', 'allowance', 'repair',
+            'store-rent', 'payroll', 'cell-cost', 'transport-fare',
+            'electricity', 'waste-product', 'trade-licence'
+        ];
+        let chart = null;
+        let currentTab = 'daily';
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            loadData();
+        });
+
+        async function loadData() {
+            try {
+                const response = await fetch('data.json');
+                if (!response.ok) {
+                    throw new Error('Could not load data.json - create the file with sample data');
+                }
+                allData = await response.json();
+                // Sort by date descending (newest first)
+                allData.sort((a, b) => new Date(b.date) - new Date(a.date));
+                filteredData = [...allData];
+                
+                populateYearFilter();
+                updateAllViews();
+                console.log(`✅ Loaded ${allData.length} days of expense data`);
+            } catch (error) {
+                console.error('Error loading data:', error);
+                alert('⚠️ Could not load data.json\n\n' + 
+                      'Please create a "data.json" file in the same folder with this format:\n' +
+                      '[\n  {\n    "date": "YYYY-MM-DD",\n    "commission": 100.00,\n    ... (all 17 expense types)\n  }\n]');
+            }
+        }
+
+        function populateYearFilter() {
+            const years = [...new Set(allData.map(d => new Date(d.date).getFullYear()))].sort((a, b) => b - a);
+            const select = document.getElementById('yearFilter');
+            select.innerHTML = '<option value="">All Years</option>';
+            years.forEach(year => {
+                const option = document.createElement('option');
+                option.value = year;
+                option.textContent = year;
+                select.appendChild(option);
+            });
+        }
+
+        function filterPeriod(period) {
+            const now = new Date();
+            let startDate;
+            switch (period) {
+                case '7days':
+                    startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                    break;
+                case '30days':
+                    startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+                    break;
+                case 'prevMonth':
+                    startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                    break;
+                default:
+                    startDate = new Date(0); // All time
+            }
+            filteredData = allData.filter(d => new Date(d.date) >= startDate);
+            updateAllViews();
+            // Update button states
+            document.querySelectorAll('.controls button').forEach(btn => btn.classList.remove('active-btn'));
+            event.target.classList.add('active-btn');
+        }
+
+        function filterData() {
+            let data = [...allData];
+            const year = document.getElementById('yearFilter').value;
+            const month = document.getElementById('monthFilter').value;
+            
+            if (year) {
+                data = data.filter(d => new Date(d.date).getFullYear() == year);
+            }
+            if (month) {
+                data = data.filter(d => new Date(d.date).getMonth() + 1 == month);
+            }
+            
+            // Apply search filter
+            const search = document.getElementById('searchInput').value.trim();
+            if (search) {
+                try {
+                    const match = search.match(/(\w+)\s*(>|<|=)\s*(\d+(?:\.\d+)?)/i);
+                    if (match) {
+                        const [_, exp, op, val] = match;
+                        const expenseKey = exp.toLowerCase().replace('-', '_');
+                        if (expenseTypes.includes(expenseKey)) {
+                            data = data.filter(d => {
+                                const v = d[expenseKey] || 0;
+                                const numVal = parseFloat(val);
+                                switch (op.toLowerCase()) {
+                                    case '>': return v > numVal;
+                                    case '<': return v < numVal;
+                                    case '=': return Math.abs(v - numVal) < 0.01;
+                                    default: return true;
+                                }
+                            });
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Invalid search syntax');
+                }
+            }
+            
+            filteredData = data;
+            updateAllViews();
+        }
+
+        function searchData() {
+            filterData();
+        }
+
+        function showTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-container').forEach(tab => tab.classList.add('hidden'));
+            // Remove active from all tab buttons
+            document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+            
+            // Show selected tab
+            document.getElementById(tabName + 'Tab').classList.remove('hidden');
+            event.target.classList.add('active');
+            currentTab = tabName;
+            
+            // Update the relevant table
+            if (tabName === 'daily') updateDailyTable();
+            else if (tabName === 'weekly') updateWeeklyTable();
+            else if (tabName === 'monthly') updateMonthlyTable();
+        }
+
+        function updateAllViews() {
+            updateSummary();
+            updateDailyTable();
+            updateWeeklyTable();
+            updateMonthlyTable();
+            updateBreakdownTable();
+            if (!document.getElementById('chartContainer').classList.contains('hidden')) {
+                updateChart();
+            }
+        }
+
+        function updateSummary() {
+            if (filteredData.length === 0) {
+                document.getElementById('summary').innerHTML = '<div class="card"><p>No data available for this period</p></div>';
+                return;
+            }
+
+            const totalDays = filteredData.length;
+            const grandTotal = filteredData.reduce((sum, d) => sum + getDailyTotal(d), 0);
+            const avgDaily = totalDays ? grandTotal / totalDays : 0;
+            const maxDaily = Math.max(...filteredData.map(getDailyTotal), 0);
+            const minDaily = Math.min(...filteredData.map(getDailyTotal), 0);
+
+            const last7Total = getPeriodTotal('7days');
+            const prev7Total = getPeriodTotal('prev7days');
+            const trendPercent = prev7Total ? ((last7Total - prev7Total) / prev7Total * 100) : 0;
+            const trendClass = trendPercent > 0 ? 'positive' : 'negative';
+
+            const highestExpense = expenseTypes.reduce((max, exp) => {
+                const total = filteredData.reduce((sum, d) => sum + (d[exp] || 0), 0);
+                return total > max.total ? { type: exp, total } : max;
+            }, { type: '', total: 0 });
+
+            document.getElementById('summary').innerHTML = `
+                <div class="card">
+                    <h3>📊 Overview</h3>
+                    <p><strong>Total Days:</strong> ${totalDays}</p>
+                    <p><strong>Grand Total:</strong> $${grandTotal.toFixed(2)}</p>
+                    <p><strong>Avg Daily:</strong> $${avgDaily.toFixed(2)}</p>
+                    <p><strong>Highest Day:</strong> $${maxDaily.toFixed(2)}</p>
+                    <p><strong>Lowest Day:</strong> $${minDaily.toFixed(2)}</p>
+                </div>
+                <div class="card">
+                    <h3>📈 Trends</h3>
+                    <p><strong>Last 7 Days:</strong> $${last7Total.toFixed(2)}</p>
+                    <p><strong>Previous 7 Days:</strong> $${prev7Total.toFixed(2)}</p>
+                    <p><strong>Change:</strong> <span class="${trendClass}">${trendPercent.toFixed(1)}%</span></p>
+                    ${trendPercent > 0 ? '<p>🎉 Expenses are increasing</p>' : '<p>📉 Expenses are decreasing</p>'}
+                </div>
+                <div class="card">
+                    <h3>⚠️ Alerts</h3>
+                    <p><strong>Highest Expense:</strong> ${highestExpense.type.replace('-', ' ').toUpperCase()}<br>
+                    <strong>Amount:</strong> $${highestExpense.total.toFixed(2)} (${((highestExpense.total/grandTotal)*100).toFixed(1)}%)</p>
+                    ${highestExpense.total/grandTotal > 0.3 ? '<p class="warning">⚠️ This expense is over 30% of total!</p>' : ''}
+                </div>
+                <div class="card">
+                    <h3>📅 Date Range</h3>
+                    <p><strong>From:</strong> ${filteredData[filteredData.length-1]?.date || 'N/A'}</p>
+                    <p><strong>To:</strong> ${filteredData[0]?.date || 'N/A'}</p>
+                    <p><strong>Period:</strong> ${totalDays} days</p>
+                </div>
+            `;
+
+            document.getElementById('recordCount').textContent = totalDays;
+            document.getElementById('dateRange').textContent = 
+                `${filteredData[filteredData.length-1]?.date || ''} to ${filteredData[0]?.date || ''}`;
+        }
+
+        function getDailyTotal(day) {
+            return expenseTypes.reduce((sum, exp) => sum + (day[exp] || 0), 0);
+        }
+
+        function getPeriodTotal(period) {
+            const now = new Date();
+            let startDate, endDate = now;
+            
+            if (period === '7days') {
+                startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            } else if (period === 'prev7days') {
+                endDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                startDate = new Date(endDate.getTime() - 7 * 24 * 60 * 60 * 1000);
+            } else {
+                return 0;
+            }
+            
+            return allData
+                .filter(d => {
+                    const date = new Date(d.date);
+                    return date >= startDate && date <= endDate;
+                })
+                .reduce((sum, d) => sum + getDailyTotal(d), 0);
+        }
+
+        function updateDailyTable() {
+            const tbody = document.getElementById('dailyTbody');
+            tbody.innerHTML = '';
+            
+            if (filteredData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="19" style="text-align: center; padding: 20px;">No data available</td></tr>';
+                return;
+            }
+
+            filteredData.forEach((day, index) => {
+                const row = tbody.insertRow();
+                row.classList.toggle('warning', index % 2 === 0); // Alternate row colors
+                
+                row.insertCell(0).textContent = day.date;
+                const totalCell = row.insertCell(1);
+                const total = getDailyTotal(day);
+                totalCell.textContent = total.toFixed(2);
+                totalCell.style.fontWeight = 'bold';
+                
+                expenseTypes.forEach(exp => {
+                    const cell = row.insertCell();
+                    const value = day[exp] || 0;
+                    cell.textContent = value.toFixed(2);
+                    if (value > 0) {
+                        cell.style.color = '#007bff';
+                    }
+                });
+            });
+
+            // Add total row
+            if (filteredData.length > 0) {
+                const totalRow = tbody.insertRow();
+                totalRow.classList.add('total-row');
+                const totalCell0 = totalRow.insertCell(0);
+                totalCell0.textContent = 'TOTAL';
+                totalCell0.colSpan = 1;
+                totalCell0.style.fontSize = '1.1em';
+                
+                const grandTotalCell = totalRow.insertCell(1);
+                grandTotalCell.textContent = filteredData.reduce((sum, d) => sum + getDailyTotal(d), 0).toFixed(2);
+                grandTotalCell.style.fontSize = '1.1em';
+                
+                expenseTypes.forEach(exp => {
+                    const cell = totalRow.insertCell();
+                    cell.textContent = filteredData.reduce((sum, d) => sum + (d[exp] || 0), 0).toFixed(2);
+                });
+            }
+        }
+
+        function updateWeeklyTable() {
+            const weeks = groupByWeek(filteredData);
+            const tbody = document.getElementById('weeklyTbody');
+            tbody.innerHTML = '';
+            
+            weeks.forEach((week, index) => {
+                if (week.length === 0) return;
+                
+                const total = week.reduce((sum, d) => sum + getDailyTotal(d), 0);
+                const avg = total / week.length;
+                const row = tbody.insertRow();
+                row.classList.toggle('warning', index % 2 === 0);
+                
+                row.insertCell(0).textContent = week[0].date; // Week start
+                row.insertCell(1).textContent = `$${total.toFixed(2)}`;
+                row.insertCell(2).textContent = `$${avg.toFixed(2)}`;
+                
+                expenseTypes.forEach(exp => {
+                    const cell = row.insertCell();
+                    cell.textContent = week.reduce((sum, d) => sum + (d[exp] || 0), 0).toFixed(2);
+                });
+            });
+        }
+
+        function groupByWeek(data) {
+            const groups = [];
+            // Group into weeks (7-day periods)
+            for (let i = 0; i < data.length; i += 7) {
+                const week = data.slice(i, i + 7);
+                if (week.length > 0) {
+                    groups.push(week);
+                }
+            }
+            return groups.reverse(); // Oldest first
+        }
+
+        function updateMonthlyTable() {
+            const months = groupByMonth(filteredData);
+            const tbody = document.getElementById('monthlyTbody');
+            tbody.innerHTML = '';
+            
+            months.forEach((month, index) => {
+                if (month.length === 0) return;
+                
+                const total = month.reduce((sum, d) => sum + getDailyTotal(d), 0);
+                const approxWeeks = Math.ceil(month.length / 7);
+                const avgWeekly = total / approxWeeks;
+                const row = tbody.insertRow();
+                row.classList.toggle('warning', index % 2 === 0);
+                
+                row.insertCell(0).textContent = month[0].date.substring(0, 7); // YYYY-MM
+                row.insertCell(1).textContent = `$${total.toFixed(2)}`;
+                row.insertCell(2).textContent = `$${avgWeekly.toFixed(2)}`;
+                
+                expenseTypes.forEach(exp => {
+                    const cell = row.insertCell();
+                    cell.textContent = month.reduce((sum, d) => sum + (d[exp] || 0), 0).toFixed(2);
+                });
+            });
+        }
+
+        function groupByMonth(data) {
+            const groups = {};
+            data.forEach(d => {
+                const key = d.date.substring(0, 7); // YYYY-MM
+                if (!groups[key]) groups[key] = [];
+                groups[key].push(d);
+            });
+            return Object.values(groups).sort((a, b) => a[0].date.localeCompare(b[0].date));
+        }
+
+        function updateBreakdownTable() {
+            const tbody = document.getElementById('breakdownTbody');
+            tbody.innerHTML = '';
+            
+            if (filteredData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 20px;">No data available</td></tr>';
+                return;
+            }
+
+            const grandTotal = filteredData.reduce((sum, d) => sum + getDailyTotal(d), 0);
+            const days = filteredData.length;
+
+            expenseTypes.forEach((exp, index) => {
+                const totals = filteredData.reduce((sum, d) => sum + (d[exp] || 0), 0);
+                const avg = days ? totals / days : 0;
+                const percent = grandTotal ? (totals / grandTotal * 100) : 0;
+                const values = filteredData.map(d => d[exp] || 0);
+                const min = Math.min(...values);
+                const max = Math.max(...values);
+                
+                const recent7 = getPeriodTotalForExpense(exp, '7days');
+                const prev7 = getPeriodTotalForExpense(exp, 'prev7days');
+                const trend = prev7 ? ((recent7 - prev7) / prev7 * 100) : 0;
+                const trendClass = trend > 10 ? 'negative' : trend < -10 ? 'positive' : '';
+                
+                const alert = percent > 25 ? '⚠️ High' : 
+                             (percent > 15 ? '📊 Medium' : 
+                             (trend > 20 ? '📈 Rising' : '✅ Normal'));
+
+                const row = tbody.insertRow();
+                row.classList.toggle('warning', index % 2 === 0);
+                
+                row.insertCell(0).textContent = exp.replace('-', ' ').toUpperCase();
+                row.insertCell(1).textContent = `$${totals.toFixed(2)}`;
+                row.insertCell(2).textContent = `$${avg.toFixed(2)}`;
+                row.insertCell(3).textContent = `${percent.toFixed(1)}%`;
+                row.insertCell(4).textContent = `$${min.toFixed(2)}`;
+                row.insertCell(5).textContent = `$${max.toFixed(2)}`;
+                row.insertCell(6).innerHTML = `<span class="${trendClass}">${trend.toFixed(1)}%</span>`;
+                row.insertCell(7).innerHTML = `<span style="font-size: 0.9em;">${alert}</span>`;
+            });
+        }
+
+        function getPeriodTotalForExpense(exp, period) {
+            const now = new Date();
+            let startDate, endDate = now;
+            
+            if (period === '7days') {
+                startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            } else if (period === 'prev7days') {
+                endDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                startDate = new Date(endDate.getTime() - 7 * 24 * 60 * 60 * 1000);
+            } else {
+                return 0;
+            }
+            
+            return allData
+                .filter(d => {
+                    const date = new Date(d.date);
+                    return date >= startDate && date <= endDate;
+                })
+                .reduce((sum, d) => sum + (d[exp] || 0), 0);
+        }
+
+        function updateChart() {
+            const ctx = document.getElementById('expenseChart').getContext('2d');
+            if (chart) chart.destroy();
+            
+            const chartData = filteredData.slice(0, 30); // Last 30 days max
+            const labels = chartData.map(d => d.date).reverse();
+            
+            const datasets = expenseTypes.slice(0, 5).map((exp, i) => { // Show top 5 expenses
+                const data = chartData.map(d => d[exp] || 0).reverse();
+                const total = data.reduce((a, b) => a + b, 0);
+                return total > 0 ? {
+                    label: exp.replace('-', ' ').toUpperCase(),
+                    data: data,
+                    borderColor: `hsl(${i * 72}, 70%, 50%)`,
+                    backgroundColor: `hsla(${i * 72}, 70%, 50%, 0.1)`,
+                    fill: false,
+                    tension: 0.1,
+                    yAxisID: 'y'
+                } : null;
+            }).filter(Boolean);
+
+            // Add total line
+            const totalData = chartData.map(d => getDailyTotal(d)).reverse();
+            datasets.push({
+                label: 'TOTAL',
+                data: totalData,
+                borderColor: '#dc3545',
+                backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                borderWidth: 3,
+                fill: false,
+                tension: 0.1,
+                yAxisID: 'y',
+                pointBackgroundColor: '#dc3545',
+                pointRadius: 4
+            });
+
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: { 
+                    labels, 
+                    datasets 
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index',
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                        },
+                        y1: {
+                            type: 'category',
+                            display: false,
+                            position: 'right',
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        title: {
+                            display: true,
+                            text: `Expense Trends - ${chartData.length} days`
+                        }
+                    }
+                }
+            });
+        }
+
+        function toggleChart() {
+            const container = document.getElementById('chartContainer');
+            const isHidden = container.classList.contains('hidden');
+            container.classList.toggle('hidden');
+            event.target.textContent = isHidden ? '📉 Hide Chart' : '📈 Show Chart';
+            
+            if (!container.classList.contains('hidden') && filteredData.length > 0) {
+                updateChart();
+            }
+        }
+
+        function exportToCSV() {
+            if (filteredData.length === 0) {
+                alert('No data to export');
+                return;
+            }
+            
+            const headers = ['Date', 'Total', ...expenseTypes.map(e => e.replace('-', ' ').replace('_', ' '))];
+            let csv = headers.join(',') + '\n';
+            
+            filteredData.forEach(d => {
+                const row = [
+                    `"${d.date}"`,
+                    getDailyTotal(d).toFixed(2),
+                    ...expenseTypes.map(e => (d[e] || 0).toFixed(2))
+                ];
+                csv += row.join(',') + '\n';
+            });
+            
+            // Add summary row
+            const totals = ['TOTAL', filteredData.reduce((sum, d) => sum + getDailyTotal(d), 0).toFixed(2)];
+            expenseTypes.forEach(exp => {
+                totals.push(filteredData.reduce((sum, d) => sum + (d[exp] || 0), 0).toFixed(2));
+            });
+            csv += totals.join(',') + '\n';
+            
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', `store-expenses-${new Date().toISOString().split('T')[0]}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function generateReport() {
+            if (filteredData.length === 0) {
+                alert('No data to generate report');
+                return;
+            }
+
+            const report = {
+                generated: new Date().toISOString(),
+                period: 'Filtered Data',
+                summary: {
+                    totalDays: filteredData.length,
+                    dateRange: {
+                        start: filteredData[filteredData.length-1]?.date,
+                        end: filteredData[0]?.date
+                    },
+                    grandTotal: filteredData.reduce((sum, d) => sum + getDailyTotal(d), 0).toFixed(2),
+                    avgDaily: (filteredData.length ? filteredData.reduce((sum, d) => sum + getDailyTotal(d), 0) / filteredData.length : 0).toFixed(2),
+                    highestDay: Math.max(...filteredData.map(getDailyTotal), 0).toFixed(2),
+                    lowestDay: Math.min(...filteredData.map(getDailyTotal), 0).toFixed(2)
+                },
+                expenseBreakdown: expenseTypes.reduce((acc, exp) => {
+                    const total = filteredData.reduce((sum, d) => sum + (d[exp] || 0), 0);
+                    const percent = (total / filteredData.reduce((sum, d) => sum + getDailyTotal(d), 0)) * 100;
+                    acc[exp.replace('-', '_')] = {
+                        total: total.toFixed(2),
+                        average: (filteredData.length ? total / filteredData.length : 0).toFixed(2),
+                        percentage: percent.toFixed(1),
+                        min: Math.min(...filteredData.map(d => d[exp] || 0)).toFixed(2),
+                        max: Math.max(...filteredData.map(d => d[exp] || 0)).toFixed(2)
+                    };
+                    return acc;
+                }, {}),
+                trends: {
+                    last7Days: getPeriodTotal('7days').toFixed(2),
+                    previous7Days: getPeriodTotal('prev7days').toFixed(2),
+                    changePercent: ((getPeriodTotal('7days') - getPeriodTotal('prev7days')) / (getPeriodTotal('prev7days') || 1) * 100).toFixed(2)
+                },
+                alerts: expenseTypes
+                    .map(exp => {
+                        const total = filteredData.reduce((sum, d) => sum + (d[exp] || 0), 0);
+                        const grandTotal = filteredData.reduce((sum, d) => sum + getDailyTotal(d), 0);
+                        const percent = (total / grandTotal) * 100;
+                        if (percent > 25) {
+                            return {
+                                expense: exp,
+                                issue: 'High percentage of total expenses',
+                                percentage: percent.toFixed(1)
+                            };
+                        }
+                    })
+                    .filter(Boolean),
+                rawDataSample: filteredData.slice(0, 5).map(d => ({
+                    date: d.date,
+                    total: getDailyTotal(d).toFixed(2),
+                    ...d
+                }))
+            };
+
+            document.getElementById('reportText').textContent = JSON.stringify(report, null, 2);
+            document.getElementById('reportContainer').classList.remove('hidden');
+            document.getElementById('reportContainer').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function copyReport() {
+            const reportText = document.getElementById('reportText').textContent;
+            navigator.clipboard.writeText(reportText).then(() => {
+                alert('Report copied to clipboard!');
+            }).catch(() => {
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = reportText;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                alert('Report copied to clipboard!');
+            });
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            if (e.ctrlKey || e.metaKey) {
+                switch(e.key) {
+                    case 'l':
+                    case 'L':
+                        e.preventDefault();
+                        loadData();
+                        break;
+                    case 'e':
+                    case 'E':
+                        e.preventDefault();
+                        exportToCSV();
+                        break;
+                    case 'r':
+                    case 'R':
+                        e.preventDefault();
+                        generateReport();
+                        break;
+                }
+            }
+        });
+
+        // Auto-refresh every 30 seconds (useful during development)
+        setInterval(() => {
+            if (document.visibilityState === 'visible') {
+                loadData();
+            }
+        }, 30000);
+
+        console.log('🚀 Store Expense Tracker loaded! Use Ctrl+L to reload, Ctrl+E to export, Ctrl+R for report.');
+    </script>
+</body>
+</html>
